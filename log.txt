@@ -1,0 +1,5 @@
+Sample rate: 48000
+Duration: 414.929
+Max value: 5.4331884
+color len 2048
+Total time: 23.218 duration 414.929

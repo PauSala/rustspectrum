@@ -7,15 +7,16 @@ use std::fs::File;
 use std::io::BufReader;
 use std::time::SystemTime;
 
-const WIDTH: usize = 512;
-const HEIGHT: usize = 512;
-const DELTA: f32 = 8.0;
-const CHUNK_SIZE: usize = 8192;
-const SHRINK_FACTOR: usize = 8;
+const WIDTH: usize = 1024;
+const HEIGHT: usize = 1024;
+const DELTA: f32 = 2.0;
+const CHUNK_SIZE: usize = 2048;
+const SHRINK_FACTOR: usize = 4;
+const SCALE_FACTOR: usize = 2;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Load a sound from a file, using a path relative to Cargo.toml
-    let file = BufReader::new(File::open("moz.mp3").unwrap());
+    let file = BufReader::new(File::open("bach2.wav").unwrap());
     // Decode that sound file into a source
     let source = Decoder::new(file)?.buffered().amplify(1.);
 
@@ -64,9 +65,20 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     //freqs = process_freqs(&freqs);
     normalize_freqs(&mut freqs);
 
-    let colors = gradient(CHUNK_SIZE / SHRINK_FACTOR / 2);
+    let colors = gradient(CHUNK_SIZE);
+    println!("color len {}", colors.len());
 
     // Create a window for visualization
+    let options = WindowOptions {
+        resize: true,
+        scale: minifb::Scale::X16,
+        scale_mode: minifb::ScaleMode::Center,
+        borderless: false,
+        title: true,
+        topmost: false,
+        transparency: false,
+        none: false,
+    };
     let mut window = Window::new(
         "Frequency Spectrum",
         WIDTH,
@@ -96,7 +108,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             for i in 0..&freq.len() / SHRINK_FACTOR {
                 curr[i] += (freq[i] - curr[i]) as f32 * (millis / 1000.0) as f32 * DELTA;
             }
-            let b = visualize_frequencies(&curr, &colors);
+            let b = draw_circles(&curr, &colors);
             window.update_with_buffer(&b, WIDTH, HEIGHT)?;
         }
         i += 1;
@@ -210,6 +222,110 @@ fn _visualize_frequencies(frequencies: &[f32], colors: &Vec<u32>) -> Vec<u32> {
     }
 
     buffer
+}
+
+fn draw_squares(freqs: &[f32], colors: &Vec<u32>) -> Vec<u32> {
+    let mut buffer: Vec<u32> = vec![0xFFFFFF; WIDTH * HEIGHT];
+    let mut start = 0;
+    let mut end = WIDTH;
+    let squares = freqs.len();
+    let square_width = WIDTH / squares / 2;
+    for &sample in freqs.iter().rev() {
+        fill_square(
+            &mut buffer,
+            start,
+            end,
+            colors[((sample * (colors.len() as f32)).round() as usize) % colors.len()],
+        );
+        start += square_width;
+        end -= square_width;
+    }
+    buffer
+}
+
+fn fill_square(buffer: &mut Vec<u32>, start: usize, end: usize, color: u32) {
+    for i in start..end {
+        for j in start..end {
+            buffer[j * WIDTH + i] = color;
+        }
+    }
+}
+
+fn draw_circles(freqs: &[f32], colors: &Vec<u32>) -> Vec<u32> {
+    let width = WIDTH * SCALE_FACTOR;
+    let height = HEIGHT * SCALE_FACTOR;
+    let mut buffer: Vec<u32> = vec![0x000000; width * height];
+    let circles = freqs.len();
+    let max_radius = width.min(height) / 2;
+    let radius_step = max_radius / circles;
+
+    for (i, &sample) in freqs.iter().rev().enumerate() {
+        let radius = (circles - i) * radius_step;
+        let color_index = ((sample * (colors.len() as f32)).round() as usize) % colors.len();
+        let color = colors[color_index];
+        fill_circle(&mut buffer, width / 2, height / 2, radius, color);
+    }
+
+    downscale(&buffer)
+}
+
+fn average_colors(colors: &[u32]) -> u32 {
+    let mut sum_r = 0u32;
+    let mut sum_g = 0u32;
+    let mut sum_b = 0u32;
+    let count = colors.len() as u32;
+
+    for &color in colors {
+        sum_r += (color >> 16) & 0xFF;
+        sum_g += (color >> 8) & 0xFF;
+        sum_b += color & 0xFF;
+    }
+
+    let avg_r = sum_r / count;
+    let avg_g = sum_g / count;
+    let avg_b = sum_b / count;
+
+    (avg_r << 16) | (avg_g << 8) | avg_b
+}
+
+fn downscale(buffer: &[u32]) -> Vec<u32> {
+    let mut new_buffer = vec![0xFFFFFF; WIDTH * HEIGHT];
+
+    for r in 0..WIDTH {
+        for c in 0..HEIGHT {
+            let mut colors = Vec::new();
+            for dy in 0..10 {
+                for dx in 0..10 {
+                    let orig_row = r * SCALE_FACTOR + dx;
+                    let orig_col = c * SCALE_FACTOR + dy;
+                    let length = buffer.len() as f64;
+                    let width = length.sqrt() as usize;
+                    let orig_index = orig_row * width + orig_col;
+                    if orig_index >= buffer.len() {
+                        continue;
+                    }
+                    let c = buffer[orig_index];
+                    colors.push(c);
+                }
+            }
+            //println!("new index: {}", c * WIDTH + r);
+            new_buffer[r * WIDTH + c] = average_colors(colors.as_slice());
+            // println!("new index: {}", new_buffer[r * WIDTH + c]);
+        }
+    }
+    new_buffer
+}
+
+fn fill_circle(buffer: &mut Vec<u32>, cx: usize, cy: usize, radius: usize, color: u32) {
+    for y in 0..HEIGHT {
+        for x in 0..WIDTH {
+            let dx = x as isize - cx as isize;
+            let dy = y as isize - cy as isize;
+            if dx * dx + dy * dy <= (radius as isize) * (radius as isize) {
+                buffer[y * WIDTH + x] = color;
+            }
+        }
+    }
 }
 
 pub fn visualize_frequencies(frequencies: &[f32], colors: &Vec<u32>) -> Vec<u32> {
