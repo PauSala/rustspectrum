@@ -9,14 +9,14 @@ use std::time::SystemTime;
 
 const WIDTH: usize = 1024;
 const HEIGHT: usize = 1024;
-const DELTA: f32 = 2.0;
+const DELTA: f32 = 4.0;
 const CHUNK_SIZE: usize = 2048;
 const SHRINK_FACTOR: usize = 4;
 const SCALE_FACTOR: usize = 2;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Load a sound from a file, using a path relative to Cargo.toml
-    let file = BufReader::new(File::open("bach2.wav").unwrap());
+    let file = BufReader::new(File::open("bach.wav").unwrap());
     // Decode that sound file into a source
     let source = Decoder::new(file)?.buffered().amplify(1.);
 
@@ -81,8 +81,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     };
     let mut window = Window::new(
         "Frequency Spectrum",
-        WIDTH,
-        HEIGHT,
+        WIDTH / SCALE_FACTOR,
+        HEIGHT / SCALE_FACTOR,
         WindowOptions::default(),
     )?;
 
@@ -109,7 +109,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 curr[i] += (freq[i] - curr[i]) as f32 * (millis / 1000.0) as f32 * DELTA;
             }
             let b = draw_circles(&curr, &colors);
-            window.update_with_buffer(&b, WIDTH, HEIGHT)?;
+            println!("Input len {} ", b.len());
+            window.update_with_buffer(&b, WIDTH / SCALE_FACTOR, HEIGHT / SCALE_FACTOR)?;
         }
         i += 1;
         if i != chunk_count.round() as usize {
@@ -252,20 +253,18 @@ fn fill_square(buffer: &mut Vec<u32>, start: usize, end: usize, color: u32) {
 }
 
 fn draw_circles(freqs: &[f32], colors: &Vec<u32>) -> Vec<u32> {
-    let width = WIDTH * SCALE_FACTOR;
-    let height = HEIGHT * SCALE_FACTOR;
-    let mut buffer: Vec<u32> = vec![0x000000; width * height];
+    let mut buffer: Vec<u32> = vec![0x000000; WIDTH * HEIGHT];
     let circles = freqs.len();
-    let max_radius = width.min(height) / 2;
+    let max_radius = WIDTH.min(HEIGHT) / 2;
     let radius_step = max_radius / circles;
 
     for (i, &sample) in freqs.iter().rev().enumerate() {
         let radius = (circles - i) * radius_step;
         let color_index = ((sample * (colors.len() as f32)).round() as usize) % colors.len();
         let color = colors[color_index];
-        fill_circle(&mut buffer, width / 2, height / 2, radius, color);
+        fill_circle(&mut buffer, WIDTH / 2, HEIGHT / 2, radius, color);
     }
-
+    println!("Buffer len {}", buffer.len());
     downscale(&buffer)
 }
 
@@ -289,13 +288,13 @@ fn average_colors(colors: &[u32]) -> u32 {
 }
 
 fn downscale(buffer: &[u32]) -> Vec<u32> {
-    let mut new_buffer = vec![0xFFFFFF; WIDTH * HEIGHT];
+    let mut new_buffer = vec![0xFFFFFF; WIDTH * HEIGHT / (SCALE_FACTOR * SCALE_FACTOR)];
 
-    for r in 0..WIDTH {
-        for c in 0..HEIGHT {
+    for r in 0..WIDTH / SCALE_FACTOR {
+        for c in 0..HEIGHT / SCALE_FACTOR {
             let mut colors = Vec::new();
-            for dy in 0..10 {
-                for dx in 0..10 {
+            for dy in 0..4 {
+                for dx in 0..4 {
                     let orig_row = r * SCALE_FACTOR + dx;
                     let orig_col = c * SCALE_FACTOR + dy;
                     let length = buffer.len() as f64;
@@ -304,12 +303,12 @@ fn downscale(buffer: &[u32]) -> Vec<u32> {
                     if orig_index >= buffer.len() {
                         continue;
                     }
-                    let c = buffer[orig_index];
+                    let c = buffer[orig_index].clone();
                     colors.push(c);
                 }
             }
             //println!("new index: {}", c * WIDTH + r);
-            new_buffer[r * WIDTH + c] = average_colors(colors.as_slice());
+            new_buffer[r * WIDTH / SCALE_FACTOR + c] = average_colors(colors.as_slice());
             // println!("new index: {}", new_buffer[r * WIDTH + c]);
         }
     }
