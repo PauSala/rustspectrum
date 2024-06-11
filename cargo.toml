@@ -1,0 +1,12 @@
+[package]
+name = "spectrum"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+colorgrad = "0.6.2"
+cpal = "0.15.3"
+hound = "3.5.1"
+minifb = "0.27.0"
+rodio = "0.18.1"
+rustfft = "6.2.0"
