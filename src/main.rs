@@ -1,11 +1,10 @@
 use minifb::{Key, Window, WindowOptions};
-use rodio::Decoder;
-use rodio::{OutputStream, Source};
+use rodio::OutputStream;
 use rustfft::num_complex::Complex;
 use rustfft::FftPlanner;
-use std::fs::File;
-use std::io::BufReader;
 use std::time::SystemTime;
+
+pub mod player;
 
 const WIDTH: usize = 1024;
 const HEIGHT: usize = WIDTH;
@@ -15,15 +14,12 @@ const SHRINK_FACTOR: usize = 4;
 const SCALE_FACTOR: usize = 2;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    // Load a sound from a file, using a path relative to Cargo.toml
-    let file = BufReader::new(File::open("moz.mp3").unwrap());
-    // Decode that sound file into a source
-    let source = Decoder::new(file)?.buffered().amplify(1.);
+    let player = player::Player::new("moz.mp3")?;
 
     // Collect samples
-    let sample_rate = source.sample_rate();
+    let sample_rate = player.spec().sample_rate;
     println!("Sample rate: {}", sample_rate);
-    let samples: Vec<f32> = source.clone().convert_samples().collect();
+    let samples: Vec<f32> = player.samples();
 
     let (left_channel, right_channel): (Vec<(usize, &f32)>, Vec<(usize, &f32)>) = samples
         .iter()
@@ -83,8 +79,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut start = SystemTime::now();
     let mut chunk_count = 0.0;
     // Play the audio
-    let (_stream, stream_handle) = OutputStream::try_default()?;
-    stream_handle.play_raw(source.convert_samples())?;
+    player.play()?;
     //stream_handle.play_once(source)?;
     let mut curr = vec![0.0; freqs[0].len() / SHRINK_FACTOR];
     while window.is_open() && !window.is_key_down(Key::Escape) && i < freqs.len() {
