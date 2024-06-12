@@ -1,9 +1,9 @@
 use minifb::{Key, Window, WindowOptions};
-use rodio::OutputStream;
 use rustfft::num_complex::Complex;
 use rustfft::FftPlanner;
 use std::time::SystemTime;
 
+pub mod analizer;
 pub mod player;
 
 const WIDTH: usize = 1024;
@@ -20,46 +20,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let sample_rate = player.spec().sample_rate;
     println!("Sample rate: {}", sample_rate);
     let samples: Vec<f32> = player.samples();
-
-    let (left_channel, right_channel): (Vec<(usize, &f32)>, Vec<(usize, &f32)>) = samples
-        .iter()
-        .enumerate()
-        .partition(|(index, _sample)| index % 2 == 0);
-
-    let left_channel: Vec<f32> = left_channel
-        .into_iter()
-        .map(|(_index, sample)| *sample)
-        .collect();
-    let right_channel: Vec<f32> = right_channel
-        .into_iter()
-        .map(|(_index, sample)| *sample)
-        .collect();
-
-    let duration = left_channel.len() as f64 / sample_rate as f64;
+    let num_channels = player.spec().channels as usize;
+    let duration = player.spec().duration;
     println!("Duration: {}", duration);
 
-    // Process the samples in chunks (e.g., 1024 samples per chunk)
-
-    let mut l_sample_chunks = left_channel.chunks(CHUNK_SIZE);
-    let mut r_sample_chunks = right_channel.chunks(CHUNK_SIZE);
-
-    let mut freqs: Vec<Vec<f32>> = Vec::new();
-    while let Some(chunk) = l_sample_chunks.next() {
-        let mut clonedl = chunk.to_vec();
-        let mut clonedr = r_sample_chunks.next().unwrap().to_vec();
-        apply_hann_window(&mut clonedl);
-        apply_hann_window(&mut clonedr);
-        let l_frequencies = analyze_frequencies(&clonedl, sample_rate);
-        let r_frequencies = analyze_frequencies(&clonedr, sample_rate);
-        let frequencies: Vec<f32> = l_frequencies
-            .iter()
-            .zip(r_frequencies.iter())
-            .map(|(l, r)| (l + r) / 2.0)
-            .collect();
-        freqs.push(frequencies);
-    }
-    //freqs = process_freqs(&freqs);
-    normalize_freqs(&mut freqs);
+    let analizer = analizer::Analizer::new(&samples, CHUNK_SIZE, sample_rate, num_channels);
+    let freqs: Vec<Vec<f32>> = analizer.get_frequencies();
 
     let colors = gradient(CHUNK_SIZE);
 
@@ -130,8 +96,6 @@ fn normalize_freqs(freqs: &mut Vec<Vec<f32>>) {
             *value = (*value + 1.0).ln();
         }
     }
-
-    // Find the minimum and maximum values in freqs
     for row in freqs.iter() {
         for &value in row.iter() {
             if value > max {
@@ -142,8 +106,6 @@ fn normalize_freqs(freqs: &mut Vec<Vec<f32>>) {
             }
         }
     }
-
-    // Normalize the values in freqs to be between 0 and
     for row in freqs.iter_mut() {
         for value in row.iter_mut() {
             *value = (*value - min) / (max - min);
@@ -182,7 +144,7 @@ fn analyze_frequencies(samples: &[f32], _sample_rate: u32) -> Vec<f32> {
         .iter()
         .take(half)
         .map(|sample| sample.norm())
-        .collect() // Only take the first half of the spectrum
+        .collect()
 }
 
 fn _visualize_frequencies(frequencies: &[f32], colors: &Vec<u32>) -> Vec<u32> {

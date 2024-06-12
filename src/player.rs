@@ -10,7 +10,8 @@ pub struct Player {
 
 pub struct AudioSpec {
     pub sample_rate: u32,
-    pub channels: u16,
+    pub channels: usize,
+    pub duration: f64,
 }
 
 impl Player {
@@ -26,9 +27,12 @@ impl Player {
     }
 
     pub fn spec(&self) -> AudioSpec {
+        let sample_rate = self.buffered_decoder.sample_rate();
+        let channels = self.buffered_decoder.channels() as usize;
         AudioSpec {
-            sample_rate: self.buffered_decoder.sample_rate(),
-            channels: self.buffered_decoder.channels(),
+            sample_rate,
+            channels,
+            duration: (self.samples().len() / channels) as f64 / sample_rate as f64,
         }
     }
 
