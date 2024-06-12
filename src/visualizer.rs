@@ -8,6 +8,13 @@ pub struct Visualizer {
     colors: Vec<u32>,
 }
 
+pub enum Visualization {
+    CircleGod,
+    SquaredGod,
+    PlotBars,
+    CircularPlot,
+}
+
 impl Visualizer {
     pub fn new(
         frequencies: Vec<Vec<f32>>,

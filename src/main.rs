@@ -1,21 +1,25 @@
+use analizer::Analizer;
+use draw::draw_window;
 use minifb::{Key, Window, WindowOptions};
+use player::Player;
 use std::time::SystemTime;
 use visualizer::Visualizer;
 
 pub mod analizer;
+pub mod draw;
 pub mod player;
 pub mod visualizer;
 
 const WIDTH: usize = 1024;
 const HEIGHT: usize = WIDTH;
 const DELTA: f32 = 2.0;
-const CHUNK_SIZE: usize = 2048;
+const CHUNK_SIZE: usize = 1024;
 const SHRINK_FACTOR: usize = 4;
 const SCALE_FACTOR: usize = 2;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let player = player::Player::new("bach.wav")?;
-
+    //Get the player
+    let player = Player::new("bach.wav")?;
     // Collect samples
     let samples: Vec<f32> = player.samples();
 
@@ -28,68 +32,57 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("Duration: {}", duration);
 
     //Get frequencies
-    let analizer = analizer::Analizer::new(&samples, CHUNK_SIZE, sample_rate, num_channels);
-    let freqs: Vec<Vec<f32>> = analizer.get_frequencies();
-    let freqs_len = freqs.len();
-    let chunk_size = freqs[0].len();
+    let analizer = Analizer::new(&samples, CHUNK_SIZE, sample_rate, num_channels);
+    let frequencies: Vec<Vec<f32>> = analizer.get_frequencies();
+    let frequencies_len = frequencies.len();
 
-    // Create a window for visualization
-    let mut window = Window::new(
+    //Get the visual processor
+    let visualizer = Visualizer::new(
+        frequencies,
+        WIDTH,
+        HEIGHT,
+        SCALE_FACTOR,
+        SHRINK_FACTOR,
+        DELTA,
+    );
+
+    //setup
+    let all_start = SystemTime::now();
+
+    // Window
+    let chunks_per_milisecond = frequencies_len as f64 / (duration * 1000.0);
+    let window = Window::new(
         "Frequency Spectrum",
         WIDTH / SCALE_FACTOR,
         HEIGHT / SCALE_FACTOR,
         WindowOptions::default(),
     )?;
-
-    let chunks_per_milisecond = freqs.len() as f64 / (duration * 1000.0);
-
-    //Get the visual processor
-    let visualizer = Visualizer::new(freqs, WIDTH, HEIGHT, SCALE_FACTOR, SHRINK_FACTOR, DELTA);
-
-    //window.set_target_fps(left_channel.len() / duration as usize / chunk_size as usize);
-    let mut current_chunk = 0;
-    let all_start = SystemTime::now();
-    let mut start = SystemTime::now();
-    let mut chunk_count = 0.0;
     // Play the audio
     player.play()?;
-    //stream_handle.play_once(source)?;
-    let mut curr = vec![0.0; chunk_size / SHRINK_FACTOR];
-    while window.is_open() && !window.is_key_down(Key::Escape) && current_chunk < freqs_len {
-        let end = SystemTime::now();
-        let elapsed = end.duration_since(start).unwrap();
-        let millis = elapsed.as_nanos() as f64 / 1_000_000.0;
-        chunk_count += millis * chunks_per_milisecond;
-
-        let b = visualizer.get_buffer(&mut curr, current_chunk, millis);
-        if let Some(b) = b {
-            window.update_with_buffer(&b, WIDTH / SCALE_FACTOR, HEIGHT / SCALE_FACTOR)?;
-        }
-        current_chunk += 1;
-        if current_chunk != chunk_count.round() as usize {
-            current_chunk = chunk_count.round() as usize;
-        }
-        start = end;
-    }
+    // Draw window
+    draw_window(
+        window,
+        WIDTH,
+        HEIGHT,
+        SCALE_FACTOR,
+        CHUNK_SIZE,
+        SHRINK_FACTOR,
+        chunks_per_milisecond,
+        frequencies_len,
+        visualizer,
+    )?;
 
     let end = SystemTime::now();
-    match end.duration_since(all_start) {
-        Ok(elapsed) => {
-            println!(
-                "Total time: {} duration {}",
-                elapsed.as_millis() as f32 / 1_000.,
-                duration
-            );
-        }
-        Err(e) => {
-            // An error occurred!
-            println!("Error: {:?}", e);
-        }
-    }
+    let elapsed = end.duration_since(all_start).unwrap();
+    println!(
+        "Total time: {} duration {}",
+        elapsed.as_millis() as f32 / 1_000.,
+        duration
+    );
     Ok(())
 }
 
-fn _visualize_frequencies(frequencies: &[f32], colors: &Vec<u32>) -> Vec<u32> {
+fn visualize_frequencies_plot(frequencies: &[f32], colors: &Vec<u32>) -> Vec<u32> {
     let mut buffer: Vec<u32> = vec![0x1c0424; WIDTH * HEIGHT];
     let margin = 1;
     let sample_width = (WIDTH / frequencies.len()) - margin;
