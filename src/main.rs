@@ -68,16 +68,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let colors = gradient(CHUNK_SIZE);
 
     // Create a window for visualization
-    let options = WindowOptions {
-        resize: true,
-        scale: minifb::Scale::X16,
-        scale_mode: minifb::ScaleMode::Center,
-        borderless: false,
-        title: true,
-        topmost: false,
-        transparency: false,
-        none: false,
-    };
     let mut window = Window::new(
         "Frequency Spectrum",
         WIDTH / SCALE_FACTOR,
@@ -95,6 +85,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Play the audio
     let (_stream, stream_handle) = OutputStream::try_default()?;
     stream_handle.play_raw(source.convert_samples())?;
+    //stream_handle.play_once(source)?;
     let mut curr = vec![0.0; freqs[0].len() / SHRINK_FACTOR];
     while window.is_open() && !window.is_key_down(Key::Escape) && i < freqs.len() {
         let end = SystemTime::now();
