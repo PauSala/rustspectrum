@@ -8,15 +8,15 @@ use std::io::BufReader;
 use std::time::SystemTime;
 
 const WIDTH: usize = 1024;
-const HEIGHT: usize = 1024;
-const DELTA: f32 = 4.0;
+const HEIGHT: usize = WIDTH;
+const DELTA: f32 = 2.0;
 const CHUNK_SIZE: usize = 2048;
 const SHRINK_FACTOR: usize = 4;
 const SCALE_FACTOR: usize = 2;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Load a sound from a file, using a path relative to Cargo.toml
-    let file = BufReader::new(File::open("bach.wav").unwrap());
+    let file = BufReader::new(File::open("moz.mp3").unwrap());
     // Decode that sound file into a source
     let source = Decoder::new(file)?.buffered().amplify(1.);
 
@@ -66,7 +66,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     normalize_freqs(&mut freqs);
 
     let colors = gradient(CHUNK_SIZE);
-    println!("color len {}", colors.len());
 
     // Create a window for visualization
     let options = WindowOptions {
@@ -109,7 +108,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 curr[i] += (freq[i] - curr[i]) as f32 * (millis / 1000.0) as f32 * DELTA;
             }
             let b = draw_circles(&curr, &colors);
-            println!("Input len {} ", b.len());
             window.update_with_buffer(&b, WIDTH / SCALE_FACTOR, HEIGHT / SCALE_FACTOR)?;
         }
         i += 1;
@@ -163,9 +161,6 @@ fn normalize_freqs(freqs: &mut Vec<Vec<f32>>) {
     for row in freqs.iter_mut() {
         for value in row.iter_mut() {
             *value = (*value - min) / (max - min);
-            if *value == 1.0 {
-                println!("Max value: {}", max);
-            }
         }
     }
 }
@@ -264,7 +259,6 @@ fn draw_circles(freqs: &[f32], colors: &Vec<u32>) -> Vec<u32> {
         let color = colors[color_index];
         fill_circle(&mut buffer, WIDTH / 2, HEIGHT / 2, radius, color);
     }
-    println!("Buffer len {}", buffer.len());
     downscale(&buffer)
 }
 
@@ -307,9 +301,7 @@ fn downscale(buffer: &[u32]) -> Vec<u32> {
                     colors.push(c);
                 }
             }
-            //println!("new index: {}", c * WIDTH + r);
             new_buffer[r * WIDTH / SCALE_FACTOR + c] = average_colors(colors.as_slice());
-            // println!("new index: {}", new_buffer[r * WIDTH + c]);
         }
     }
     new_buffer
