@@ -16,7 +16,7 @@ const SCALE_FACTOR: usize = 2;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Load a sound from a file, using a path relative to Cargo.toml
-    let file = BufReader::new(File::open("moz.mp3").unwrap());
+    let file = BufReader::new(File::open("bach.wav").unwrap());
     // Decode that sound file into a source
     let source = Decoder::new(file)?.buffered().amplify(1.);
 
