@@ -57,22 +57,30 @@ impl Visualizer {
         let max_radius = self.width.min(self.height) / 2;
         let radius_step = max_radius / circles;
 
+        let mut all_circles: Vec<(usize, u32)> = Vec::new();
+
         for (i, &sample) in freqs.iter().rev().enumerate() {
             let radius = (circles - i) * radius_step;
             let color_index = ((sample * (colors.len() as f32)).round() as usize) % colors.len();
             let color = colors[color_index];
-            self.fill_circle(&mut buffer, self.width / 2, self.height / 2, radius, color);
+            all_circles.push((radius, color));
         }
+        self.fill_circles(&mut buffer, all_circles);
         self.downscale(&buffer)
     }
 
-    fn fill_circle(&self, buffer: &mut Vec<u32>, cx: usize, cy: usize, radius: usize, color: u32) {
+    fn fill_circles(&self, buffer: &mut Vec<u32>, circles: Vec<(usize, u32)>) {
+        let cx = self.width / 2;
+        let cy = self.height / 2;
         for y in 0..self.height {
             for x in 0..self.width {
                 let dx = x as isize - cx as isize;
                 let dy = y as isize - cy as isize;
-                if dx * dx + dy * dy <= (radius as isize) * (radius as isize) {
-                    buffer[y * self.width + x] = color;
+                for circle in circles.iter().rev() {
+                    if dx * dx + dy * dy <= (circle.0 as isize) * (circle.0 as isize) {
+                        buffer[y * self.width + x] = circle.1;
+                        break;
+                    }
                 }
             }
         }
