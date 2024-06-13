@@ -1,6 +1,5 @@
 pub struct Visualizer {
     frequencies: Vec<Vec<f32>>,
-    shrink_factor: usize,
     width: usize,
     height: usize,
     scale_factor: usize,
@@ -21,7 +20,6 @@ impl Visualizer {
         width: usize,
         height: usize,
         scale_factor: usize,
-        shrink_factor: usize,
         delta: f32,
     ) -> Self {
         let colors = Visualizer::gradient(frequencies[0].len());
@@ -30,7 +28,6 @@ impl Visualizer {
             width,
             height,
             scale_factor,
-            shrink_factor,
             delta,
             colors,
         }
@@ -44,7 +41,7 @@ impl Visualizer {
     ) -> Option<Vec<u32>> {
         if current_chunk < self.frequencies.len() {
             let freq = self.frequencies.get(current_chunk).unwrap();
-            for i in 0..&freq.len() / self.shrink_factor {
+            for i in 0..prev_buffer.len() {
                 prev_buffer[i] += (freq[i] - prev_buffer[i]) as f32
                     * (elapsed_milis / 1000.0) as f32
                     * self.delta;
@@ -126,6 +123,60 @@ impl Visualizer {
             }
         }
         new_buffer
+    }
+
+    fn draw_squares(&self, freqs: &[f32], colors: &Vec<u32>) -> Vec<u32> {
+        let mut buffer: Vec<u32> =
+            vec![0xFFFFFF; (self.width / self.scale_factor) * (self.height / self.scale_factor)];
+        let mut start = 0;
+        let mut end = self.width / self.scale_factor;
+        let squares = freqs.len();
+        let square_width = (self.width / self.scale_factor) / squares / 2;
+        for &sample in freqs.iter().rev() {
+            self.fill_square(
+                &mut buffer,
+                start,
+                end,
+                colors[((sample * (colors.len() as f32)).round() as usize) % colors.len()],
+            );
+            start += square_width;
+            end -= square_width;
+        }
+        buffer
+    }
+
+    fn fill_square(&self, buffer: &mut Vec<u32>, start: usize, end: usize, color: u32) {
+        for i in start..end {
+            for j in start..end {
+                buffer[j * (self.width / self.scale_factor) + i] = color;
+            }
+        }
+    }
+
+    pub fn visualize_frequencies(&self, frequencies: &[f32], colors: &Vec<u32>) -> Vec<u32> {
+        const WIDTH: usize = 512;
+        const HEIGHT: usize = 512;
+        let mut buffer: Vec<u32> = vec![0x1c0424; WIDTH * HEIGHT];
+        let center_x = WIDTH / 2;
+        let center_y = HEIGHT / 2;
+        let radius = center_x.min(center_y) as f32;
+
+        for (i, &sample) in frequencies.iter().enumerate() {
+            let angle = (i as f32 / frequencies.len() as f32) * 2.0 * std::f32::consts::PI;
+            let r = radius * sample;
+            for r in 0..(r * 1000.) as usize {
+                let x = (center_x as f32 + (r / 1000) as f32 * angle.cos()) as usize; // convert polar to cartesian coordinates
+                let y = (center_y as f32 + (r / 1000) as f32 * angle.sin()) as usize;
+                let color = colors[i % colors.len()];
+
+                if x < WIDTH && y < HEIGHT {
+                    let index = x + y * WIDTH;
+                    buffer[index] = color;
+                }
+            }
+        }
+
+        buffer
     }
 
     fn gradient(len: usize) -> Vec<u32> {

@@ -1,6 +1,6 @@
 use analizer::Analizer;
 use draw::draw_window;
-use minifb::{Key, Window, WindowOptions};
+use minifb::{Window, WindowOptions};
 use player::Player;
 use std::time::SystemTime;
 use visualizer::Visualizer;
@@ -13,7 +13,7 @@ pub mod visualizer;
 const WIDTH: usize = 1024;
 const HEIGHT: usize = WIDTH;
 const DELTA: f32 = 2.0;
-const CHUNK_SIZE: usize = 1024;
+const CHUNK_SIZE: usize = 2048;
 const SHRINK_FACTOR: usize = 4;
 const SCALE_FACTOR: usize = 2;
 
@@ -35,16 +35,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let analizer = Analizer::new(&samples, CHUNK_SIZE, sample_rate, num_channels);
     let frequencies: Vec<Vec<f32>> = analizer.get_frequencies();
     let frequencies_len = frequencies.len();
+    let chunk_len = frequencies[0].len();
+
+    dbg!(chunk_len);
+    dbg!(chunk_len / SHRINK_FACTOR);
 
     //Get the visual processor
-    let visualizer = Visualizer::new(
-        frequencies,
-        WIDTH,
-        HEIGHT,
-        SCALE_FACTOR,
-        SHRINK_FACTOR,
-        DELTA,
-    );
+    let visualizer = Visualizer::new(frequencies, WIDTH, HEIGHT, SCALE_FACTOR, DELTA);
 
     //setup
     let all_start = SystemTime::now();
@@ -65,8 +62,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         WIDTH,
         HEIGHT,
         SCALE_FACTOR,
-        CHUNK_SIZE,
-        SHRINK_FACTOR,
+        chunk_len / SHRINK_FACTOR,
         chunks_per_milisecond,
         frequencies_len,
         visualizer,
@@ -82,7 +78,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-fn visualize_frequencies_plot(frequencies: &[f32], colors: &Vec<u32>) -> Vec<u32> {
+pub fn visualize_frequencies_plot(frequencies: &[f32], colors: &Vec<u32>) -> Vec<u32> {
     let mut buffer: Vec<u32> = vec![0x1c0424; WIDTH * HEIGHT];
     let margin = 1;
     let sample_width = (WIDTH / frequencies.len()) - margin;
@@ -96,57 +92,6 @@ fn visualize_frequencies_plot(frequencies: &[f32], colors: &Vec<u32>) -> Vec<u32
                 if index < buffer.len() {
                     buffer[index] = color;
                 }
-            }
-        }
-    }
-
-    buffer
-}
-
-fn draw_squares(freqs: &[f32], colors: &Vec<u32>) -> Vec<u32> {
-    let mut buffer: Vec<u32> = vec![0xFFFFFF; WIDTH * HEIGHT];
-    let mut start = 0;
-    let mut end = WIDTH;
-    let squares = freqs.len();
-    let square_width = WIDTH / squares / 2;
-    for &sample in freqs.iter().rev() {
-        fill_square(
-            &mut buffer,
-            start,
-            end,
-            colors[((sample * (colors.len() as f32)).round() as usize) % colors.len()],
-        );
-        start += square_width;
-        end -= square_width;
-    }
-    buffer
-}
-
-fn fill_square(buffer: &mut Vec<u32>, start: usize, end: usize, color: u32) {
-    for i in start..end {
-        for j in start..end {
-            buffer[j * WIDTH + i] = color;
-        }
-    }
-}
-
-pub fn visualize_frequencies(frequencies: &[f32], colors: &Vec<u32>) -> Vec<u32> {
-    let mut buffer: Vec<u32> = vec![0x1c0424; WIDTH * HEIGHT];
-    let center_x = WIDTH / 2;
-    let center_y = HEIGHT / 2;
-    let radius = center_x.min(center_y) as f32;
-
-    for (i, &sample) in frequencies.iter().enumerate() {
-        let angle = (i as f32 / frequencies.len() as f32) * 2.0 * std::f32::consts::PI;
-        let r = radius * sample;
-        for r in 0..(r * 1000.) as usize {
-            let x = (center_x as f32 + (r / 1000) as f32 * angle.cos()) as usize; // convert polar to cartesian coordinates
-            let y = (center_y as f32 + (r / 1000) as f32 * angle.sin()) as usize;
-            let color = colors[i % colors.len()];
-
-            if x < WIDTH && y < HEIGHT {
-                let index = x + y * WIDTH;
-                buffer[index] = color;
             }
         }
     }
