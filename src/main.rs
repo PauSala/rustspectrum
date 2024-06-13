@@ -13,13 +13,13 @@ pub mod visualizer;
 const WIDTH: usize = 1024;
 const HEIGHT: usize = WIDTH;
 const DELTA: f32 = 2.0;
-const CHUNK_SIZE: usize = 2048;
-const SHRINK_FACTOR: usize = 4;
+const CHUNK_SIZE: usize = 1024;
+const SHRINK_FACTOR: usize = 8;
 const SCALE_FACTOR: usize = 2;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     //Get the player
-    let player = Player::new("bach.wav")?;
+    let player = Player::new("moz.mp3")?;
     // Collect samples
     let samples: Vec<f32> = player.samples();
 
@@ -41,7 +41,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     dbg!(chunk_len / SHRINK_FACTOR);
 
     //Get the visual processor
-    let visualizer = Visualizer::new(frequencies, WIDTH, HEIGHT, SCALE_FACTOR, DELTA);
+    let visualizer = Visualizer::new(
+        frequencies,
+        WIDTH,
+        HEIGHT,
+        SCALE_FACTOR,
+        DELTA,
+        visualizer::Visualization::CircularPlot,
+    );
 
     //setup
     let all_start = SystemTime::now();
@@ -76,25 +83,4 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         duration
     );
     Ok(())
-}
-
-pub fn visualize_frequencies_plot(frequencies: &[f32], colors: &Vec<u32>) -> Vec<u32> {
-    let mut buffer: Vec<u32> = vec![0x1c0424; WIDTH * HEIGHT];
-    let margin = 1;
-    let sample_width = (WIDTH / frequencies.len()) - margin;
-    for (i, &sample) in frequencies.iter().enumerate() {
-        let x = i * (sample_width + margin);
-        let y = ((1.0 - sample) * HEIGHT as f32) as usize; // flip the visualization
-        let color = colors[i % colors.len()]; // create a color based on the index
-        for j in x..x + sample_width {
-            for k in y..HEIGHT {
-                let index = j + k * WIDTH;
-                if index < buffer.len() {
-                    buffer[index] = color;
-                }
-            }
-        }
-    }
-
-    buffer
 }

@@ -24,7 +24,7 @@ pub fn draw_window(
         //get chunk count
         let end = SystemTime::now();
         let elapsed = end.duration_since(start).unwrap();
-        println!("Elapsed: {:?}", elapsed.as_millis());
+        //println!("Elapsed: {:?}", elapsed.as_millis());
         let millis = elapsed.as_nanos() as f64 / 1_000_000.0;
         chunk_count += millis * chunks_per_milisecond;
 

@@ -1,3 +1,5 @@
+use crate::SHRINK_FACTOR;
+
 pub struct Visualizer {
     frequencies: Vec<Vec<f32>>,
     width: usize,
@@ -5,13 +7,14 @@ pub struct Visualizer {
     scale_factor: usize,
     delta: f32,
     colors: Vec<u32>,
+    visualization: Visualization,
 }
 
 pub enum Visualization {
     CircleGod,
     SquaredGod,
-    PlotBars,
     CircularPlot,
+    Plot,
 }
 
 impl Visualizer {
@@ -21,8 +24,9 @@ impl Visualizer {
         height: usize,
         scale_factor: usize,
         delta: f32,
+        visualization: Visualization,
     ) -> Self {
-        let colors = Visualizer::gradient(frequencies[0].len());
+        let colors = Visualizer::gradient(frequencies[0].len() / SHRINK_FACTOR);
         Self {
             frequencies,
             width,
@@ -30,6 +34,7 @@ impl Visualizer {
             scale_factor,
             delta,
             colors,
+            visualization,
         }
     }
 
@@ -41,12 +46,26 @@ impl Visualizer {
     ) -> Option<Vec<u32>> {
         if current_chunk < self.frequencies.len() {
             let freq = self.frequencies.get(current_chunk).unwrap();
+            //println!("buff len: {} freq len: {}", prev_buffer.len(), freq.len());
             for i in 0..prev_buffer.len() {
                 prev_buffer[i] += (freq[i] - prev_buffer[i]) as f32
                     * (elapsed_milis / 1000.0) as f32
                     * self.delta;
             }
-            return Some(self.draw_circles(&prev_buffer, &self.colors));
+            match self.visualization {
+                Visualization::CircleGod => {
+                    return Some(self.draw_circles(&prev_buffer, &self.colors))
+                }
+                Visualization::SquaredGod => {
+                    return Some(self.draw_squares(&prev_buffer, &self.colors))
+                }
+                Visualization::CircularPlot => {
+                    return Some(self.circle_plot(&prev_buffer, &self.colors))
+                }
+                Visualization::Plot => {
+                    return Some(self.visualize_frequencies_plot(&prev_buffer, &self.colors))
+                }
+            }
         }
         None
     }
@@ -161,7 +180,7 @@ impl Visualizer {
         }
     }
 
-    pub fn visualize_frequencies(&self, frequencies: &[f32], colors: &Vec<u32>) -> Vec<u32> {
+    pub fn circle_plot(&self, frequencies: &[f32], colors: &Vec<u32>) -> Vec<u32> {
         const WIDTH: usize = 512;
         const HEIGHT: usize = 512;
         let mut buffer: Vec<u32> = vec![0x1c0424; WIDTH * HEIGHT];
@@ -187,8 +206,31 @@ impl Visualizer {
         buffer
     }
 
+    pub fn visualize_frequencies_plot(&self, frequencies: &[f32], colors: &Vec<u32>) -> Vec<u32> {
+        const WIDTH: usize = 512;
+        const HEIGHT: usize = 512;
+        let mut buffer: Vec<u32> = vec![0x1c0424; WIDTH * HEIGHT];
+        let margin = 1;
+        let sample_width = (WIDTH / frequencies.len()) - margin;
+        for (i, &sample) in frequencies.iter().enumerate() {
+            let x = i * (sample_width + margin);
+            let y = ((1.0 - sample) * HEIGHT as f32) as usize; // flip the visualization
+            let color = colors[i % colors.len()]; // create a color based on the index
+            for j in x..x + sample_width {
+                for k in y..HEIGHT {
+                    let index = j + k * WIDTH;
+                    if index < buffer.len() {
+                        buffer[index] = color;
+                    }
+                }
+            }
+        }
+
+        buffer
+    }
+
     fn gradient(len: usize) -> Vec<u32> {
-        let g = colorgrad::magma();
+        let g = colorgrad::plasma();
         let c = g.colors(len);
         c.iter()
             .map(|color| {

@@ -88,6 +88,7 @@ impl<'a> Analizer<'a> {
         let half = spectrum.len() / 2;
         spectrum
             .iter()
+            .skip(1)
             .take(half)
             .map(|sample| sample.norm())
             .collect()
