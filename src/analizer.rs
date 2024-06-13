@@ -21,7 +21,25 @@ impl<'a> Analizer<'a> {
         }
     }
 
-    pub fn get_frequencies(&self) -> Vec<Vec<f32>> {
+    pub fn get_1c_live_frequencies(&self) -> Vec<f32> {
+        let mut channel = Vec::with_capacity(self.samples.len());
+        for s in self.samples {
+            channel.push(*s);
+        }
+
+        let mut chunks = channel.chunks_mut(self.chunk_size);
+
+        let mut freqs: Vec<Vec<f32>> = Vec::new();
+        while let Some(mut l_chunk) = chunks.next() {
+            self.apply_hann_window(&mut l_chunk);
+            let frequencies = self.analyze_frequencies(&l_chunk, self.sample_rate);
+            freqs.push(frequencies);
+        }
+        self.normalize_freqs(&mut freqs);
+        freqs.pop().unwrap()
+    }
+
+    pub fn get_2c_frequencies(&self) -> Vec<Vec<f32>> {
         let mut channels = self.partition_samples(self.samples, self.num_channels);
         let mut left_channel: Vec<f32> = channels.pop().expect("At least 2 channels are required");
         let mut right_channel: Vec<f32> = channels.pop().expect("At least 2 channels are required");
@@ -99,11 +117,11 @@ impl<'a> Analizer<'a> {
         let mut max = f32::MIN;
 
         // Apply a logarithmic function to compress the range
-        for row in freqs.iter_mut() {
-            for value in row.iter_mut() {
-                *value = (*value + 1.0).ln();
-            }
-        }
+        // for row in freqs.iter_mut() {
+        //     for value in row.iter_mut() {
+        //         *value = (*value + 1.0).ln();
+        //     }
+        // }
         for row in freqs.iter() {
             for &value in row.iter() {
                 if value > max {

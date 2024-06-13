@@ -1,3 +1,5 @@
+use std::sync::{Arc, Mutex};
+
 use crate::SHRINK_FACTOR;
 
 pub struct Visualizer {
@@ -35,6 +37,35 @@ impl Visualizer {
             delta,
             colors,
             visualization,
+        }
+    }
+
+    pub fn get_live_buffer(
+        &self,
+        prev_buffer: &mut Vec<f32>,
+        freqs: Arc<Mutex<Vec<f32>>>,
+        elapsed_milis: f64,
+    ) -> Option<Vec<u32>> {
+        let ff = freqs.lock().unwrap();
+        if ff.len() < 1 {
+            return None;
+        }
+        for i in 0..prev_buffer.len() {
+            prev_buffer[i] +=
+                (ff[i] - prev_buffer[i]) as f32 * (elapsed_milis / 1000.0) as f32 * self.delta;
+        }
+        //println!("Buffer {:?}", prev_buffer);
+        match self.visualization {
+            Visualization::CircleGod => return Some(self.draw_circles(&prev_buffer, &self.colors)),
+            Visualization::SquaredGod => {
+                return Some(self.draw_squares(&prev_buffer, &self.colors))
+            }
+            Visualization::CircularPlot => {
+                return Some(self.circle_plot(&prev_buffer, &self.colors))
+            }
+            Visualization::Plot => {
+                return Some(self.visualize_frequencies_plot(&prev_buffer, &self.colors))
+            }
         }
     }
 
@@ -230,7 +261,7 @@ impl Visualizer {
     }
 
     fn gradient(len: usize) -> Vec<u32> {
-        let g = colorgrad::plasma();
+        let g = colorgrad::magma();
         let c = g.colors(len);
         c.iter()
             .map(|color| {
