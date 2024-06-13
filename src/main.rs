@@ -15,6 +15,7 @@ const DELTA: f32 = 2.0;
 const CHUNK_SIZE: usize = 1024;
 const SHRINK_FACTOR: usize = 8;
 const SCALE_FACTOR: usize = 2;
+const BUF_LEN: usize = 1024;
 
 fn main() {
     let host = cpal::default_host();
@@ -44,7 +45,7 @@ fn main() {
             &config,
             move |data: &[f32], _| {
                 let mut buffer = shared_buffer_clone.lock().unwrap();
-                if buffer.len() >= 1024 {
+                if buffer.len() >= BUF_LEN {
                     buffer.clear();
                 }
                 buffer.extend_from_slice(data);
@@ -78,7 +79,7 @@ fn main() {
             }
         };
         if let Some(buffer) = buffer {
-            if buffer.len() >= 1024 {
+            if buffer.len() >= BUF_LEN {
                 let analizer = Analizer::new(&buffer, CHUNK_SIZE, 44100, 1);
                 let ff = analizer.get_1c_live_frequencies();
                 let lock = shrd_ff_cln.lock();
@@ -104,19 +105,21 @@ fn main() {
     )
     .unwrap();
     let visualizer = Visualizer::new(
-        vec![vec![0.0; 1024]],
+        vec![vec![0.0; 128]],
         WIDTH,
         HEIGHT,
         SCALE_FACTOR,
         DELTA,
         visualizer::Visualization::CircleGod,
     );
+    window.set_target_fps(10);
     let mut start = SystemTime::now();
     let mut curr = vec![0.0; 128];
     while window.is_open() && !window.is_key_down(Key::Escape) {
         let end = SystemTime::now();
         let elapsed = end.duration_since(start).unwrap();
         //println!("Elapsed: {:?}", elapsed.as_millis());
+        // precission issues
         let millis = elapsed.as_nanos() as f64 / 1_000_000.0;
 
         //Get visualiation buffer
@@ -127,6 +130,7 @@ fn main() {
                 .update_with_buffer(&b, WIDTH / SCALE_FACTOR, HEIGHT / SCALE_FACTOR)
                 .unwrap();
         }
+
         start = end;
     }
 }

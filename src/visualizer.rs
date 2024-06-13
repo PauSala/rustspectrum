@@ -1,6 +1,9 @@
-use std::sync::{Arc, Mutex};
+use std::{
+    collections::HashMap,
+    sync::{Arc, Mutex},
+};
 
-use crate::SHRINK_FACTOR;
+use crate::{analizer::Analizer, SHRINK_FACTOR};
 
 pub struct Visualizer {
     frequencies: Vec<Vec<f32>>,
@@ -10,6 +13,7 @@ pub struct Visualizer {
     delta: f32,
     colors: Vec<u32>,
     visualization: Visualization,
+    circles: HashMap<usize, Vec<usize>>,
 }
 
 pub enum Visualization {
@@ -37,7 +41,41 @@ impl Visualizer {
             delta,
             colors,
             visualization,
+            circles: Visualizer::classify_circles(width, height),
         }
+    }
+
+    pub fn classify_circles(width: usize, height: usize) -> HashMap<usize, Vec<usize>> {
+        let circles = 128;
+        let max_radius = width.min(height) / 2;
+        let radius_step = max_radius / circles;
+
+        let mut all_circles: Vec<usize> = Vec::new();
+
+        for i in 0..128 {
+            let radius = (circles - i) * radius_step;
+            all_circles.push(radius);
+        }
+
+        let mut res: HashMap<usize, Vec<usize>> = HashMap::new();
+
+        let cx = width / 2;
+        let cy = height / 2;
+        for y in 0..height {
+            for x in 0..width {
+                let dx = x as isize - cx as isize;
+                let dy = y as isize - cy as isize;
+                let dist_sq = dx * dx + dy * dy;
+                let index = y * width + x;
+                for circle in all_circles.iter().rev() {
+                    if dist_sq <= (circle * circle) as isize {
+                        res.entry(*circle).and_modify(|v| v.push(index));
+                        break;
+                    }
+                }
+            }
+        }
+        res
     }
 
     pub fn get_live_buffer(
@@ -126,9 +164,11 @@ impl Visualizer {
             for x in 0..self.width {
                 let dx = x as isize - cx as isize;
                 let dy = y as isize - cy as isize;
+                let dist_sq = dx * dx + dy * dy;
+                let index = y * self.width + x;
                 for circle in circles.iter().rev() {
-                    if dx * dx + dy * dy <= (circle.0 as isize) * (circle.0 as isize) {
-                        buffer[y * self.width + x] = circle.1;
+                    if dist_sq <= circle.0.pow(2) as isize {
+                        buffer[index] = circle.1;
                         break;
                     }
                 }
