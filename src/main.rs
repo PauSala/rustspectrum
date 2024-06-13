@@ -16,6 +16,7 @@ const CHUNK_SIZE: usize = 1024;
 const SHRINK_FACTOR: usize = 8;
 const SCALE_FACTOR: usize = 2;
 const BUF_LEN: usize = 1024;
+const DB_LEN: usize = 128;
 
 fn main() {
     let host = cpal::default_host();
@@ -105,16 +106,16 @@ fn main() {
     )
     .unwrap();
     let visualizer = Visualizer::new(
-        vec![vec![0.0; 128]],
+        vec![vec![0.0; DB_LEN]],
         WIDTH,
         HEIGHT,
         SCALE_FACTOR,
         DELTA,
         visualizer::Visualization::CircleGod,
     );
-    window.set_target_fps(10);
+    window.set_target_fps(30);
     let mut start = SystemTime::now();
-    let mut curr = vec![0.0; 128];
+    let mut curr = vec![0.0; DB_LEN];
     while window.is_open() && !window.is_key_down(Key::Escape) {
         let end = SystemTime::now();
         let elapsed = end.duration_since(start).unwrap();

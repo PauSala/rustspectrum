@@ -3,7 +3,7 @@ use std::{
     sync::{Arc, Mutex},
 };
 
-use crate::{analizer::Analizer, SHRINK_FACTOR};
+use crate::{analizer::Analizer, DB_LEN, SHRINK_FACTOR};
 
 pub struct Visualizer {
     frequencies: Vec<Vec<f32>>,
@@ -13,7 +13,7 @@ pub struct Visualizer {
     delta: f32,
     colors: Vec<u32>,
     visualization: Visualization,
-    circles: HashMap<usize, Vec<usize>>,
+    circles: Vec<usize>,
 }
 
 pub enum Visualization {
@@ -32,7 +32,7 @@ impl Visualizer {
         delta: f32,
         visualization: Visualization,
     ) -> Self {
-        let colors = Visualizer::gradient(frequencies[0].len() / SHRINK_FACTOR);
+        let colors = Visualizer::gradient(DB_LEN);
         Self {
             frequencies,
             width,
@@ -45,19 +45,19 @@ impl Visualizer {
         }
     }
 
-    pub fn classify_circles(width: usize, height: usize) -> HashMap<usize, Vec<usize>> {
-        let circles = 128;
-        let max_radius = width.min(height) / 2;
+    pub fn classify_circles(width: usize, height: usize) -> Vec<usize> {
+        let circles = DB_LEN;
+        let max_radius = (width.min(height) / 2) - 1;
         let radius_step = max_radius / circles;
 
         let mut all_circles: Vec<usize> = Vec::new();
 
-        for i in 0..128 {
+        for i in 0..DB_LEN {
             let radius = (circles - i) * radius_step;
             all_circles.push(radius);
         }
 
-        let mut res: HashMap<usize, Vec<usize>> = HashMap::new();
+        let mut res: Vec<usize> = vec![DB_LEN; width * height];
 
         let cx = width / 2;
         let cy = height / 2;
@@ -67,9 +67,9 @@ impl Visualizer {
                 let dy = y as isize - cy as isize;
                 let dist_sq = dx * dx + dy * dy;
                 let index = y * width + x;
-                for circle in all_circles.iter().rev() {
+                for (i, circle) in all_circles.iter().rev().enumerate() {
                     if dist_sq <= (circle * circle) as isize {
-                        res.entry(*circle).and_modify(|v| v.push(index));
+                        res[index] = i;
                         break;
                     }
                 }
@@ -141,39 +141,25 @@ impl Visualizer {
 
     fn draw_circles(&self, freqs: &[f32], colors: &Vec<u32>) -> Vec<u32> {
         let mut buffer: Vec<u32> = vec![0x000000; self.width * self.height];
-        let circles = freqs.len();
-        let max_radius = self.width.min(self.height) / 2;
-        let radius_step = max_radius / circles;
 
-        let mut all_circles: Vec<(usize, u32)> = Vec::new();
+        // Map each frequency to its corresponding color
+        let color_map: Vec<u32> = freqs
+            .iter()
+            .map(|&sample| {
+                let color_index =
+                    ((sample * (colors.len() as f32)).round() as usize) % colors.len();
+                colors[color_index]
+            })
+            .collect();
 
-        for (i, &sample) in freqs.iter().rev().enumerate() {
-            let radius = (circles - i) * radius_step;
-            let color_index = ((sample * (colors.len() as f32)).round() as usize) % colors.len();
-            let color = colors[color_index];
-            all_circles.push((radius, color));
-        }
-        self.fill_circles(&mut buffer, all_circles);
-        self.downscale(&buffer)
-    }
-
-    fn fill_circles(&self, buffer: &mut Vec<u32>, circles: Vec<(usize, u32)>) {
-        let cx = self.width / 2;
-        let cy = self.height / 2;
-        for y in 0..self.height {
-            for x in 0..self.width {
-                let dx = x as isize - cx as isize;
-                let dy = y as isize - cy as isize;
-                let dist_sq = dx * dx + dy * dy;
-                let index = y * self.width + x;
-                for circle in circles.iter().rev() {
-                    if dist_sq <= circle.0.pow(2) as isize {
-                        buffer[index] = circle.1;
-                        break;
-                    }
-                }
+        // Use the precomputed circle classification to set buffer colors
+        for (i, &circle_index) in self.circles.iter().enumerate() {
+            if circle_index < color_map.len() {
+                buffer[i] = color_map[circle_index];
             }
         }
+
+        self.downscale(&buffer)
     }
 
     fn average_colors(&self, colors: &[u32]) -> u32 {
